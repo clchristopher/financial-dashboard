@@ -20,7 +20,6 @@ Session(app)
 # Configure CS50 Library to use SQLite database
 db = SQL("sqlite:///finance.db")
 
-
 @app.after_request
 def after_request(response):
     """Ensure responses aren't cached"""
@@ -79,6 +78,7 @@ def login():
         # Remember which user has logged in
         session["user_id"] = rows[0]["id"]
 
+
         # Redirect user to home page
         return redirect("/")
 
@@ -95,14 +95,22 @@ def logout():
     session.clear()
 
     # Redirect user to login form
-    return redirect("/")
+    return redirect("/login")
 
 
 @app.route("/quote", methods=["GET", "POST"])
 @login_required
 def quote():
-    """Get stock quote."""
-    return apology("TODO")
+    if request.method == "POST":
+        symbol = request.form.get("symbol")
+        info = lookup(symbol)
+        if info:
+            return render_template("quoted.html", info=info)
+        else:
+            return apology("No stock exists", 400)
+    else:
+        return render_template("quote.html")
+
 
 
 @app.route("/register", methods=["GET", "POST"])
@@ -119,9 +127,19 @@ def register():
         # Ensure password was submitted
         elif not request.form.get("password"):
             return apology("must provide password", 403)
+        
+        elif request.form.get("password") != request.form.get("confirmation"):
+            return apology("password does not match", 403)
+        
+        hashedPassword = generate_password_hash(request.form.get("password"))
+        db.execute("INSERT INTO users (username, HASH) VALUES(?, ?)", request.form.get('username'), hashedPassword)
 
         # Query database for username
         rows = db.execute("SELECT * FROM users WHERE username = ?", request.form.get("username"))
+
+        # Ensure username exists and password is correct
+        if len(rows) != 1 or not check_password_hash(rows[0]["hash"], request.form.get("password")):
+            return apology("invalid username and/or password", 403)
 
         # Remember which user has logged in
         session["user_id"] = rows[0]["id"]
