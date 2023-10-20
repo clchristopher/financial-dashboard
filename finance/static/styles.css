@@ -12,3 +12,13 @@ footer {
     width: 100%;
     height: 2.5rem; 
 }
+
+
+.left{
+    text-align: start;
+}
+
+.right{
+    text-align: end;
+}
+

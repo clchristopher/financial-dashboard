@@ -20,6 +20,15 @@ Session(app)
 # Configure CS50 Library to use SQLite database
 db = SQL("sqlite:///finance.db")
 
+db.execute("""
+    CREATE TABLE  IF NOT EXISTS portfolio (
+        id INTEGER PRIMARY KEY,
+        symbol TEXT NOT NULL,
+        price FLOAT,
+        quantity FLOAT
+    )
+""")
+
 @app.after_request
 def after_request(response):
     """Ensure responses aren't cached"""
@@ -29,19 +38,46 @@ def after_request(response):
     return response
 
 
+
 @app.route("/")
 @login_required
 def index():
-    """Show portfolio of stocks"""
-    return apology("TODO")
+    portfolio = db.execute("SELECT * FROM portfolio")
+    cash = db.execute("SELECT cash FROM users WHERE id = ?", session["user_id"])
+    total = cash[0]["cash"]
+    for stock in portfolio:
+        total += stock["quantity"] * stock["price"]
+
+    return render_template("index.html", portfolio=portfolio, cash=cash, total=round(total, 2))
 
 
 @app.route("/buy", methods=["GET", "POST"])
 @login_required
 def buy():
-    """Buy shares of stock"""
-    return apology("TODO")
+    if request.method == "POST":
+        symbol = request.form.get("symbol")
+        shares = float(request.form.get("shares"))
+        info = lookup(symbol)
+        existing_stock = db.execute("SELECT * FROM portfolio WHERE symbol = ?", symbol)
 
+        if existing_stock:
+            updated_quantity = existing_stock[0]["quantity"] + shares
+            db.execute("UPDATE portfolio SET quantity = ? WHERE symbol = ?", updated_quantity, symbol)
+        else:
+            db.execute("INSERT INTO portfolio (symbol, price, quantity) VALUES(?, ?, ?)", symbol, info["price"], shares)
+
+        cash = db.execute("SELECT cash FROM users WHERE id = ?", session["user_id"])
+        cash[0]["cash"] = cash[0]["cash"] - (shares * info["price"])
+        db.execute("UPDATE users SET cash = ? WHERE id = ?", cash[0]["cash"], session["user_id"])
+
+        portfolio = db.execute("SELECT * FROM portfolio")
+        total = cash[0]["cash"]
+        for stock in portfolio:
+            total += stock["quantity"] * stock["price"]
+
+        return redirect("/")
+    else:
+        return render_template("buy.html")
 
 @app.route("/history")
 @login_required
