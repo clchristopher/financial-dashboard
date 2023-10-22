@@ -61,7 +61,7 @@ def buy():
         symbol = request.form.get("symbol")
         shares = float(request.form.get("shares"))
         info = lookup(symbol)
-        existing_stock = db.execute("SELECT * FROM portfolio WHERE symbol = ? AND user_id = ? LIMIT 1", symbol, session["user_id"])
+        existing_stock = db.execute("SELECT * FROM portfolio WHERE symbol = ? AND user_id = ?", symbol, session["user_id"])
 
         cash = db.execute("SELECT cash FROM users WHERE id = ?", session["user_id"])
 
@@ -202,20 +202,23 @@ def register():
 @app.route("/sell", methods=["GET", "POST"])
 @login_required
 def sell():
-    
+    portfolio = db.execute("SELECT * FROM portfolio WHERE user_id = ?", (session['user_id']))
     if request.method == "POST":
         symbol = request.form.get("stock").lower()
         shares = float(request.form.get("shares"))
         info = lookup(symbol)
-        existing_stock = db.execute("SELECT * FROM portfolio WHERE symbol = ?", symbol)
+        existing_stock = db.execute("SELECT * FROM portfolio WHERE symbol = ? AND user_id = ? LIMIT 1", symbol, session["user_id"])
 
         
         if (existing_stock[0]["quantity"] >= shares):
             updated_quantity = existing_stock[0]["quantity"] - shares
-            db.execute("UPDATE portfolio SET quantity = ? WHERE symbol = ?", updated_quantity, symbol)
+            if updated_quantity == 0:
+                 db.execute("DELETE FROM portfolio WHERE symbol = ? AND user_id = ?", symbol, session['user_id'])
+            else:
+                db.execute("UPDATE portfolio SET quantity = ? WHERE symbol = ? AND user_id = ?", updated_quantity, symbol, session['user_id'])
             sellingPrice = info["price"]
             cash = db.execute("SELECT cash FROM users WHERE id = ?", session["user_id"])
-            cash[0]["cash"] = cash[0]["cash"] + (shares * info["price"])
+            cash[0]["cash"] = cash[0]["cash"] + (shares * sellingPrice)
             db.execute("UPDATE users SET cash = ? WHERE id = ?", cash[0]["cash"], session["user_id"])
             flash("Sold!")
             return redirect("/")
