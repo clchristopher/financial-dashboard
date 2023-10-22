@@ -23,11 +23,14 @@ db = SQL("sqlite:///finance.db")
 db.execute("""
     CREATE TABLE  IF NOT EXISTS portfolio (
         id INTEGER PRIMARY KEY,
+        user_id INTEGER,
         symbol TEXT NOT NULL,
         price FLOAT,
         quantity FLOAT
     )
 """)
+
+
 
 @app.after_request
 def after_request(response):
@@ -42,7 +45,7 @@ def after_request(response):
 @app.route("/")
 @login_required
 def index():
-    portfolio = db.execute("SELECT * FROM portfolio")
+    portfolio = db.execute("SELECT * FROM portfolio WHERE user_id = ?", (session['user_id']))
     cash = db.execute("SELECT cash FROM users WHERE id = ?", session["user_id"])
     total = cash[0]["cash"]
     for stock in portfolio:
@@ -58,23 +61,30 @@ def buy():
         symbol = request.form.get("symbol")
         shares = float(request.form.get("shares"))
         info = lookup(symbol)
-        existing_stock = db.execute("SELECT * FROM portfolio WHERE symbol = ?", symbol)
+        existing_stock = db.execute("SELECT * FROM portfolio WHERE symbol = ? AND user_id = ? LIMIT 1", symbol, session["user_id"])
+
+        cash = db.execute("SELECT cash FROM users WHERE id = ?", session["user_id"])
+
+        if cash[0]["cash"] < ( shares * info["price"]):
+            
+            return apology("broke", -1)
+        
 
         if existing_stock:
             updated_quantity = existing_stock[0]["quantity"] + shares
-            db.execute("UPDATE portfolio SET quantity = ? WHERE symbol = ?", updated_quantity, symbol)
+            db.execute("UPDATE portfolio SET quantity = ? WHERE symbol = ? AND user_id = ?", updated_quantity, symbol, session['user_id'])
         else:
-            db.execute("INSERT INTO portfolio (symbol, price, quantity) VALUES(?, ?, ?)", symbol, info["price"], shares)
+            db.execute("INSERT INTO portfolio (symbol, price, quantity, user_id) VALUES(?, ?, ?, ?)", symbol, info["price"], shares, session['user_id'])
 
-        cash = db.execute("SELECT cash FROM users WHERE id = ?", session["user_id"])
+        
         cash[0]["cash"] = cash[0]["cash"] - (shares * info["price"])
         db.execute("UPDATE users SET cash = ? WHERE id = ?", cash[0]["cash"], session["user_id"])
 
-        portfolio = db.execute("SELECT * FROM portfolio")
+        portfolio = db.execute("SELECT * FROM portfolio WHERE user_id = ?", (session['user_id']))
         total = cash[0]["cash"]
         for stock in portfolio:
             total += stock["quantity"] * stock["price"]
-
+        flash("Bought!")
         return redirect("/")
     else:
         return render_template("buy.html")
@@ -192,5 +202,25 @@ def register():
 @app.route("/sell", methods=["GET", "POST"])
 @login_required
 def sell():
-    """Sell shares of stock"""
-    return apology("TODO")
+    
+    if request.method == "POST":
+        symbol = request.form.get("stock").lower()
+        shares = float(request.form.get("shares"))
+        info = lookup(symbol)
+        existing_stock = db.execute("SELECT * FROM portfolio WHERE symbol = ?", symbol)
+
+        
+        if (existing_stock[0]["quantity"] >= shares):
+            updated_quantity = existing_stock[0]["quantity"] - shares
+            db.execute("UPDATE portfolio SET quantity = ? WHERE symbol = ?", updated_quantity, symbol)
+            sellingPrice = info["price"]
+            cash = db.execute("SELECT cash FROM users WHERE id = ?", session["user_id"])
+            cash[0]["cash"] = cash[0]["cash"] + (shares * info["price"])
+            db.execute("UPDATE users SET cash = ? WHERE id = ?", cash[0]["cash"], session["user_id"])
+            flash("Sold!")
+            return redirect("/")
+            
+        else:
+            return(apology("you don't have enough of this stock", 400))
+    else:
+        return render_template("sell.html", portfolio = portfolio)

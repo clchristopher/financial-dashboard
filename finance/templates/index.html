@@ -8,7 +8,7 @@ Home
 
 
 
-<table class="table table-striped">
+<table class="table ">
     <thead>
         <tr>
             <th class="text-start">Symbol</th>
@@ -24,19 +24,19 @@ Home
                 <td class="text-start">{{stock.symbol | upper  }} </td>
                 <td class="text-start">{{ stock.symbol | upper   }} </td>
                 <td class="text-end">{{ stock.quantity }} </td>
-                <td class="text-end">${{ stock.price }}</td>
-                <td class="text-end">${{ stock.quantity * stock.price|round(2) }}2</td>
+                <td class="text-end">${{ stock.price|round(2)  }}</td>
+                <td class="text-end">${{ '%.2f'|format(stock.quantity * stock.price)}}</td>
             </tr>
         {% endfor %}
     </tbody>
     <tfoot>
         <tr>
             <td class="border-0 fw-bold text-end" colspan="4">Cash</td>
-            <td class="border-0 text-end">${{ cash[0]["cash"]  |round(2)}}</td>
+            <td class="border-0 text-end">${{ '%.2f'|format(cash[0]["cash"])  }}</td>
         </tr>
         <tr>
             <td class="border-0 fw-bold text-end" colspan="4">TOTAL</td>
-            <td class="border-0 w-bold text-end">${{ total  |round(2)}}</td>
+            <td class="border-0 w-bold text-end">${{ '%.2f'|format(total)}}</td>
         </tr>
     </tfoot>
 </table>

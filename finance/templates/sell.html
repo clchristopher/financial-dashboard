@@ -5,13 +5,19 @@ Buy Stock
 {% endblock %}
 
 {% block main %}
-    <form action="/buy" method="post">
+    <form action="/sell" method="post">
         <div class="mb-3">
-            <input autocomplete="off" autofocus class="form-control mx-auto w-auto" id="symbol" name="symbol" placeholder="Stock Symbol" type="text">
+			<select class="form-select mx-auto w-auto"  name = "stock">
+				<option disabled selected>Stock</option>
+				{% for stock in portfolio %}
+				<option>{{stock.symbol | upper  }}</option>
+
+				{% endfor %}
+			</select>
         </div>
 		<div class="mb-3">
             <input autocomplete="off" autofocus class="form-control mx-auto w-auto" id="shares" name="shares" placeholder="Shares" type="number" step="0.1">
         </div>
-        <button class="btn btn-primary" type="submit">Buy</button>
+        <button class="btn btn-primary" type="submit">Sell</button>
     </form>
 {% endblock %}
