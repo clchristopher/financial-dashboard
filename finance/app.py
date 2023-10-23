@@ -1,4 +1,5 @@
 import os
+import datetime
 from cs50 import SQL
 from flask import Flask, flash, redirect, render_template, request, session
 from flask_session import Session
@@ -30,6 +31,18 @@ db.execute("""
     )
 """)
 
+db.execute("""
+    CREATE TABLE  IF NOT EXISTS transactions (
+        id INTEGER PRIMARY KEY,
+        user_id INTEGER,
+        symbol TEXT NOT NULL,
+        price FLOAT,
+        quantity FLOAT,
+        date Text
+    )
+""")
+
+
 
 
 @app.after_request
@@ -60,15 +73,18 @@ def buy():
     if request.method == "POST":
         symbol = request.form.get("symbol")
         shares = float(request.form.get("shares"))
+        if (shares <= 0):
+            return apology("Negative stock", 401)
         info = lookup(symbol)
         existing_stock = db.execute("SELECT * FROM portfolio WHERE symbol = ? AND user_id = ?", symbol, session["user_id"])
 
-        cash = db.execute("SELECT cash FROM users WHERE id = ?", session["user_id"])
+        cash_query = db.execute("SELECT cash FROM users WHERE id = ?", session["user_id"])
 
-        if cash[0]["cash"] < ( shares * info["price"]):
-            
-            return apology("broke", -1)
-        
+        if not cash_query:
+            return apology("User not found", 404)
+
+        cash = cash_query[0]["cash"]
+                
 
         if existing_stock:
             updated_quantity = existing_stock[0]["quantity"] + shares
@@ -76,12 +92,14 @@ def buy():
         else:
             db.execute("INSERT INTO portfolio (symbol, price, quantity, user_id) VALUES(?, ?, ?, ?)", symbol, info["price"], shares, session['user_id'])
 
+        db.execute("INSERT INTO transactions (symbol, price, quantity, user_id, date) VALUES(?, ?, ?, ?, datetime('now', 'localtime'))",symbol, info["price"], shares, session['user_id'])
+
         
-        cash[0]["cash"] = cash[0]["cash"] - (shares * info["price"])
-        db.execute("UPDATE users SET cash = ? WHERE id = ?", cash[0]["cash"], session["user_id"])
+        cash -= (shares * info["price"])
+        db.execute("UPDATE users SET cash = ? WHERE id = ?", cash, session["user_id"])
 
         portfolio = db.execute("SELECT * FROM portfolio WHERE user_id = ?", (session['user_id']))
-        total = cash[0]["cash"]
+        total = cash
         for stock in portfolio:
             total += stock["quantity"] * stock["price"]
         flash("Bought!")
@@ -92,8 +110,8 @@ def buy():
 @app.route("/history")
 @login_required
 def history():
-    """Show history of transactions"""
-    return apology("TODO")
+    transactions = db.execute("SELECT * FROM transactions WHERE user_id = ?", (session['user_id']))
+    return render_template("history.html", transactions = transactions)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -206,6 +224,8 @@ def sell():
     if request.method == "POST":
         symbol = request.form.get("stock").lower()
         shares = float(request.form.get("shares"))
+        if (shares <= 0):
+            return apology("Negative stock", 401)
         info = lookup(symbol)
         existing_stock = db.execute("SELECT * FROM portfolio WHERE symbol = ? AND user_id = ? LIMIT 1", symbol, session["user_id"])
 
@@ -216,6 +236,9 @@ def sell():
                  db.execute("DELETE FROM portfolio WHERE symbol = ? AND user_id = ?", symbol, session['user_id'])
             else:
                 db.execute("UPDATE portfolio SET quantity = ? WHERE symbol = ? AND user_id = ?", updated_quantity, symbol, session['user_id'])
+
+            shares *= -1
+            db.execute("INSERT INTO transactions (symbol, price, quantity, user_id, date) VALUES(?, ?, ?, ?, datetime('now', 'localtime'))",symbol, info["price"], shares, session['user_id'])
             sellingPrice = info["price"]
             cash = db.execute("SELECT cash FROM users WHERE id = ?", session["user_id"])
             cash[0]["cash"] = cash[0]["cash"] + (shares * sellingPrice)
