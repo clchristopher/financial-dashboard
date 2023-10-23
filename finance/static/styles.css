@@ -12,7 +12,10 @@ footer {
     height: 2.5rem; 
 }
 
-
+.body, .table{
+    background-color: black;
+    color: white;
+}
 
 .left{
     text-align: start;
